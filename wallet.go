@@ -78,3 +78,11 @@ func (w *Wallet) Transfer(be TestBackend, to common.Address, amount *big.Int) er
 func (w *Wallet) TransactOpts() *bind.TransactOpts {
 	return bind.NewKeyedTransactor(w.pk)
 }
+
+func (w *Wallet) Balance(be TestBackend) *big.Int {
+	b, err := be.BalanceAt(context.Background(), w.Address(), nil)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
