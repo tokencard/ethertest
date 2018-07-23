@@ -111,13 +111,15 @@ func (t *TestRig) ExpectMinimumCoverage(name string, expectedCoverage float64) {
 		}
 		panic(fmt.Errorf("Could not find contract %q, available: %q", name, keys))
 	}
+
 	if c.percentageCovered() < expectedCoverage {
 		fmt.Println()
-		fmt.Printf("Coverage for %q:", name)
-		fmt.Println()
+		fmt.Printf("Coverage for %q:\n", name)
 		c.Print()
 		panic(fmt.Errorf("Contract %q has %.2f%% coverage (expected: %.2f%%)", name, c.percentageCovered(), expectedCoverage))
 	}
+
+	fmt.Printf("\nCoverage for %q: %.2f%%\n", name, c.percentageCovered())
 
 }
 
