@@ -18,17 +18,6 @@ func newContract(source []byte, ss solcSource, con *solcContract) *contract {
 		to   int
 	}
 
-	fbs := ss.Ast.functionBodies()
-	for _, fb := range fbs {
-		p := strings.Split(fb, ":")
-		f, _ := strconv.Atoi(p[0])
-		l, _ := strconv.Atoi(p[1])
-
-		for i := f; i < f+l; i++ {
-			cov[i] = 'R'
-		}
-	}
-
 	sha := sha3.NewKeccak256()
 	sha.Write([]byte(con.contractBinary()))
 	hash := sha.Sum(nil)
@@ -37,21 +26,26 @@ func newContract(source []byte, ss solcSource, con *solcContract) *contract {
 
 	for i, sme := range sm {
 
-		as, found := ss.Ast.findBySrc(fmt.Sprintf("%d:%d:%d", sme.s, sme.l, sme.f))
+		as, found := ss.Ast.findBySrcPrefix(fmt.Sprintf("%d:%d:", sme.s, sme.l))
 		if found {
 			switch as.Name {
-			case "ContractDefinition":
+			case
+				"ContractDefinition",
+				"IfStatement",
+				"FunctionDefinition",
+				"Block",
+				"PragmaDirective",
+				"SourceUnit":
 				skip[i] = true
-			case "IfStatement":
-				skip[i] = true
-			case "FunctionDefinition":
-				skip[i] = true
-			case "Block":
-				skip[i] = true
-			default:
+				continue
 			}
 		}
+
+		for i := sme.s; i < sme.s+sme.l; i++ {
+			cov[i] = 'R'
+		}
 	}
+
 	return &contract{
 		source:       source,
 		coverage:     cov,
@@ -167,12 +161,12 @@ type solcASTNode struct {
 	Name       string         `json:"name"`
 }
 
-func (n solcASTNode) findBySrc(src string) (solcASTNode, bool) {
-	if n.Src == src {
+func (n solcASTNode) findBySrcPrefix(srcPrefix string) (solcASTNode, bool) {
+	if strings.HasPrefix(n.Src, srcPrefix) {
 		return n, true
 	}
 	for _, c := range n.Children {
-		fc, found := c.findBySrc(src)
+		fc, found := c.findBySrcPrefix(srcPrefix)
 		if found {
 			return fc, true
 		}
@@ -201,47 +195,6 @@ func (n solcASTNode) allChildren() []solcASTNode {
 		r = append(r, cc...)
 	}
 	return r
-}
-
-func (n solcASTNode) functionBodies() []string {
-
-	r := []string{}
-
-	n.visit(func(vn solcASTNode) bool {
-		switch vn.Name {
-		case "FunctionDefinition", "ModifierDefinition":
-			if !vn.Attributes.IsConstructor {
-				for _, c := range vn.Children {
-					if c.Name != "ParameterList" && c.Name != "ModifierInvocation" {
-						c.visit(func(npn solcASTNode) bool {
-							switch npn.Name {
-							case "Block":
-								// skip
-							case "IfStatement":
-								// skip
-							case "ForStatement":
-								// skip
-							case "EmitStatement":
-								// skip
-							case "ModifierInvocation":
-								// skip
-							default:
-								r = append(r, npn.Src)
-							}
-							return true
-						})
-					}
-				}
-
-				return false
-			}
-			return false
-		}
-		return true
-	})
-
-	return r
-
 }
 
 func (n solcASTNode) visit(f func(n solcASTNode) bool) {
