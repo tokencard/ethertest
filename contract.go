@@ -42,7 +42,9 @@ func newContract(source []byte, ss solcSource, con *solcContract) *contract {
 		}
 
 		for i := sme.s; i < sme.s+sme.l; i++ {
-			cov[i] = 'R'
+			if i < len(cov) {
+				cov[i] = 'R'
+			}
 		}
 	}
 
@@ -77,7 +79,7 @@ func (c *contract) executed(codeHash common.Hash, pc uint64) {
 		if !c.skipCoverage[idx] {
 			sm := c.sourcemap[idx]
 			for i := sm.s; i < sm.s+sm.l; i++ {
-				if c.coverage[i] == 'R' {
+				if i < len(c.coverage) && c.coverage[i] == 'R' {
 					c.coverage[i] = 'G'
 				}
 			}
