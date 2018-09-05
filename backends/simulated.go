@@ -62,23 +62,23 @@ type SimulatedBackend struct {
 
 	config *params.ChainConfig
 
-	vmConfig vm.Config
+	vmc vm.Config
 }
 
 // NewSimulatedBackend creates a new binding backend using a simulated blockchain
 // for testing purposes.
-func NewSimulatedBackend(alloc core.GenesisAlloc, vmConfig vm.Config) *SimulatedBackend {
+func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64, vmc vm.Config) *SimulatedBackend {
 	database := ethdb.NewMemDatabase()
-	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, Alloc: alloc}
+	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, GasLimit: gasLimit, Alloc: alloc}
 	genesis.MustCommit(database)
-	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vmConfig)
+	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vmc)
 
 	backend := &SimulatedBackend{
 		database:   database,
 		blockchain: blockchain,
 		config:     genesis.Config,
 		events:     filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false),
-		vmConfig:   vmConfig,
+		vmc:        vmc,
 	}
 	backend.rollback()
 	return backend
@@ -269,7 +269,6 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 // callContract implements common code between normal and pending contract calls.
 // state is modified during execution, make sure to copy it if necessary.
 func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallMsg, block *types.Block, statedb *state.StateDB) ([]byte, uint64, bool, error) {
-
 	// Ensure message is initialized properly.
 	if call.GasPrice == nil {
 		call.GasPrice = big.NewInt(1)
@@ -289,7 +288,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	evmContext := core.NewEVMContext(msg, block.Header(), b.blockchain, nil)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(evmContext, statedb, b.config, b.vmConfig)
+	vmenv := vm.NewEVM(evmContext, statedb, b.config, b.vmc)
 	gaspool := new(core.GasPool).AddGas(math.MaxUint64)
 
 	return core.NewStateTransition(vmenv, msg, gaspool).TransitionDb()
@@ -328,18 +327,24 @@ func (b *SimulatedBackend) SendTransaction(ctx context.Context, tx *types.Transa
 //
 // TODO(karalabe): Deprecate when the subscription one can return past data too.
 func (b *SimulatedBackend) FilterLogs(ctx context.Context, query ethereum.FilterQuery) ([]types.Log, error) {
-	// Initialize unset filter boundaried to run from genesis to chain head
-	from := int64(0)
-	if query.FromBlock != nil {
-		from = query.FromBlock.Int64()
+	var filter *filters.Filter
+	if query.BlockHash != nil {
+		// Block filter requested, construct a single-shot filter
+		filter = filters.NewBlockFilter(&filterBackend{b.database, b.blockchain}, *query.BlockHash, query.Addresses, query.Topics)
+	} else {
+		// Initialize unset filter boundaried to run from genesis to chain head
+		from := int64(0)
+		if query.FromBlock != nil {
+			from = query.FromBlock.Int64()
+		}
+		to := int64(-1)
+		if query.ToBlock != nil {
+			to = query.ToBlock.Int64()
+		}
+		// Construct the range filter
+		filter = filters.NewRangeFilter(&filterBackend{b.database, b.blockchain}, from, to, query.Addresses, query.Topics)
 	}
-	to := int64(-1)
-	if query.ToBlock != nil {
-		to = query.ToBlock.Int64()
-	}
-	// Construct and execute the filter
-	filter := filters.New(&filterBackend{b.database, b.blockchain}, from, to, query.Addresses, query.Topics)
-
+	// Run the filter and return all the logs
 	logs, err := filter.Logs(ctx)
 	if err != nil {
 		return nil, err
@@ -432,6 +437,10 @@ func (fb *filterBackend) HeaderByNumber(ctx context.Context, block rpc.BlockNumb
 		return fb.bc.CurrentHeader(), nil
 	}
 	return fb.bc.GetHeaderByNumber(uint64(block.Int64())), nil
+}
+
+func (fb *filterBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+	return fb.bc.GetHeaderByHash(hash), nil
 }
 
 func (fb *filterBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {

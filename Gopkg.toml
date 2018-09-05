@@ -27,7 +27,7 @@
 
 [[constraint]]
   name = "github.com/ethereum/go-ethereum"
-  version = "~1.8.9"
+  version = "1.8.15"
 
 [[constraint]]
   branch = "master"
@@ -35,3 +35,4 @@
 
 [prune]
   go-tests = true
+  unused-packages = true
