@@ -14,7 +14,6 @@ func TestSrcmap(t *testing.T) {
 }
 
 var _ = Describe("Uncompress", func() {
-	// -1:-1:-1:;11386:87:2;;;11452:10;;11434:15;:28;11386:87;11081:398;:::o;20850:::-;20960:22;:20;:22::i
 	It("Should not change uncompressed entry", func() {
 		m, err := srcmap.Uncompress("1:2:3:abc")
 		Expect(err).ToNot(HaveOccurred())
