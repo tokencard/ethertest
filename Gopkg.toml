@@ -24,10 +24,13 @@
 #   go-tests = true
 #   unused-packages = true
 
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify/archive/v1.4.7.tar.gz"
 
 [[constraint]]
   name = "github.com/ethereum/go-ethereum"
-  version = "1.8.15"
+  version = "v1.8.16"
 
 [[constraint]]
   branch = "master"

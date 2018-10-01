@@ -2,15 +2,15 @@ package ethertest
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	. "github.com/logrusorgru/aurora"
+	"github.com/tokencard/ethertest/srcmap"
 )
 
-func newContract(source []byte, ss solcSource, con *solcContract) *contract {
+func newContract(name string, source []byte, ss solcSource, con *solcContract, sourceIndex int) (*contract, error) {
 	cov := make([]byte, len(source))
 
 	type rr struct {
@@ -21,12 +21,15 @@ func newContract(source []byte, ss solcSource, con *solcContract) *contract {
 	sha := sha3.NewKeccak256()
 	sha.Write([]byte(con.contractBinary()))
 	hash := sha.Sum(nil)
-	sm := con.runtimeScrmap()
+	sm, err := con.runtimeScrmap()
+	if err != nil {
+		return nil, err
+	}
 	skip := make([]bool, len(sm))
 
 	for i, sme := range sm {
 
-		as, found := ss.Ast.findBySrcPrefix(fmt.Sprintf("%d:%d:", sme.s, sme.l))
+		as, found := ss.Ast.findBySrcPrefix(fmt.Sprintf("%d:%d:", sme.S, sme.L))
 		if found {
 			switch as.Name {
 			case
@@ -41,8 +44,12 @@ func newContract(source []byte, ss solcSource, con *solcContract) *contract {
 			}
 		}
 
-		for i := sme.s; i < sme.s+sme.l; i++ {
-			if i < len(cov) {
+		for i := sme.S; i < sme.S+sme.L; i++ {
+			if i >= len(cov) {
+				return nil, fmt.Errorf("combined.json of %s seems to be out of date", name)
+			}
+			if sme.F == sourceIndex {
+
 				cov[i] = 'R'
 			}
 		}
@@ -55,7 +62,8 @@ func newContract(source []byte, ss solcSource, con *solcContract) *contract {
 		sourcemap:    sm,
 		hash:         common.BytesToHash(hash),
 		skipCoverage: skip,
-	}
+		sourceIndex:  sourceIndex,
+	}, nil
 }
 
 type contract struct {
@@ -63,9 +71,10 @@ type contract struct {
 	coverage []byte
 	// sc           *solcCombined
 	pcToIndex    map[uint64]int
-	sourcemap    []srcmap
+	sourcemap    []srcmap.Entry
 	hash         common.Hash
 	skipCoverage []bool
+	sourceIndex  int
 }
 
 func (c *contract) executed(codeHash common.Hash, pc uint64) {
@@ -78,8 +87,8 @@ func (c *contract) executed(codeHash common.Hash, pc uint64) {
 	} else {
 		if !c.skipCoverage[idx] {
 			sm := c.sourcemap[idx]
-			for i := sm.s; i < sm.s+sm.l; i++ {
-				if i < len(c.coverage) && c.coverage[i] == 'R' {
+			for i := sm.S; i < sm.S+sm.L; i++ {
+				if sm.F == c.sourceIndex && c.coverage[i] == 'R' {
 					c.coverage[i] = 'G'
 				}
 			}
@@ -125,8 +134,20 @@ func (c *contract) percentageCovered() float64 {
 }
 
 type solcCombined struct {
-	Contracts map[string]*solcContract `json:"contracts"`
-	Sources   map[string]solcSource    `json:"sources"`
+	Contracts  map[string]*solcContract `json:"contracts"`
+	SourceList []string                 `json:"sourceList"`
+	Sources    map[string]solcSource    `json:"sources"`
+}
+
+func (s solcCombined) findSourceIndex(name string) int {
+
+	for i, n := range s.SourceList {
+		if n == name {
+			return i
+		}
+	}
+	return -1
+
 }
 
 type solcContract struct {
@@ -205,78 +226,10 @@ func (n solcASTNode) visit(f func(n solcASTNode) bool) {
 			c.visit(f)
 		}
 	}
-
 }
 
-func nextMapElement(el string, prev srcmap) srcmap {
-
-	if el == "" {
-		return prev
-	}
-
-	parts := strings.Split(el, ":")
-
-	r := srcmap{}
-
-	if len(parts) >= 1 {
-		if parts[0] == "" {
-			r.s = prev.s
-		} else {
-			var err error
-			r.s, err = strconv.Atoi(parts[0])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-
-	if len(parts) >= 2 {
-		if parts[1] == "" {
-			r.l = prev.l
-		} else {
-			var err error
-			r.l, err = strconv.Atoi(parts[1])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	if len(parts) >= 3 {
-		if parts[2] == "" {
-			r.f = prev.f
-		} else {
-			var err error
-			r.f, err = strconv.Atoi(parts[2])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-
-	if len(parts) >= 4 {
-		if parts[3] == "" {
-			r.j = prev.j
-		} else {
-			r.j = parts[3]
-		}
-	}
-
-	return r
-
-}
-
-func (sc *solcContract) runtimeScrmap() []srcmap {
-	els := strings.Split(sc.SrcmapRuntime, ";")
-	prev := srcmap{}
-	res := []srcmap{}
-	for _, el := range els {
-		sme := nextMapElement(el, prev)
-
-		res = append(res, sme)
-		prev = sme
-	}
-
-	return res
+func (sc *solcContract) runtimeScrmap() (srcmap.Map, error) {
+	return srcmap.Uncompress(sc.SrcmapRuntime)
 }
 
 func (sc *solcContract) contractBinary() []byte {
@@ -309,11 +262,4 @@ func (sc *solcContract) countInstructions() int {
 		}
 	}
 	return cnt
-}
-
-type srcmap struct {
-	s int
-	l int
-	f int
-	j string
 }
