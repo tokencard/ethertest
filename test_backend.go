@@ -45,7 +45,7 @@ type TestBackend interface {
 
 // NewTestBackend creates a new instance of TestBackend
 func (t *TestRig) NewTestBackend() TestBackend {
-	return backends.NewSimulatedBackend(t.genesisAlloc, 7981579,, vm.Config{
+	return backends.NewSimulatedBackend(t.genesisAlloc, 7981579, vm.Config{
 		Debug:  true,
 		Tracer: t,
 	})
