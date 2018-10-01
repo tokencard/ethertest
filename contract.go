@@ -45,11 +45,10 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 		}
 
 		for i := sme.S; i < sme.S+sme.L; i++ {
-			if i >= len(cov) {
-				return nil, fmt.Errorf("combined.json of %s seems to be out of date", name)
-			}
 			if sme.F == sourceIndex {
-
+				if i >= len(cov) {
+					return nil, fmt.Errorf("combined.json of %s seems to be out of date", name)
+				}
 				cov[i] = 'R'
 			}
 		}
