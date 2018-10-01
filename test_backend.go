@@ -45,7 +45,7 @@ type TestBackend interface {
 
 // NewTestBackend creates a new instance of TestBackend
 func (t *TestRig) NewTestBackend() TestBackend {
-	return backends.NewSimulatedBackend(t.genesisAlloc, 7981579, vm.Config{
+	return backends.NewSimulatedBackend(t.genesisAlloc, 7981579,, vm.Config{
 		Debug:  true,
 		Tracer: t,
 	})
@@ -90,10 +90,17 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractFiles ...
 	}
 
 	for n, s := range sourceCode {
+		sourceIndex := sc.findSourceIndex(n)
+		if sourceIndex < 0 {
+			panic(fmt.Errorf("Could not find %q in the source-index", n))
+		}
 		ss := sc.Sources[n]
 		for cn, scon := range sc.Contracts {
 			if scon.BinRuntime != "" && strings.HasPrefix(cn+":", n) {
-				con := newContract(s, ss, scon)
+				con, err := newContract(cn, s, ss, scon, sourceIndex)
+				if err != nil {
+					panic(err)
+				}
 				t.contracts[cn] = con
 			}
 		}
