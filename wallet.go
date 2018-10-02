@@ -79,6 +79,12 @@ func (w *Wallet) TransactOpts() *bind.TransactOpts {
 	return bind.NewKeyedTransactor(w.pk)
 }
 
+func (w *Wallet) TransactOptsWithGasLimit(gasLimit uint64) *bind.TransactOpts {
+	to := bind.NewKeyedTransactor(w.pk)
+	to.GasLimit = gasLimit
+	return to
+}
+
 func (w *Wallet) Balance(be TestBackend) *big.Int {
 	b, err := be.BalanceAt(context.Background(), w.Address(), nil)
 	if err != nil {
