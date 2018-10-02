@@ -109,6 +109,18 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractFiles ...
 	return t
 }
 
+func (t *TestRig) CoverageOf(name string) float64 {
+	c, found := t.contracts[name]
+	if !found {
+		keys := []string{}
+		for k := range t.contracts {
+			keys = append(keys, k)
+		}
+		panic(fmt.Errorf("Could not find contract %q, available: %q", name, keys))
+	}
+	return c.percentageCovered()
+}
+
 func (t *TestRig) ExpectMinimumCoverage(name string, expectedCoverage float64) {
 	c, found := t.contracts[name]
 	if !found {
