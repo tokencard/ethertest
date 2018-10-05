@@ -116,6 +116,7 @@ func (t *TestRig) CoverageOf(name string) float64 {
 		for k := range t.contracts {
 			keys = append(keys, k)
 		}
+
 		panic(fmt.Errorf("Could not find contract %q, available: %q", name, keys))
 	}
 	return c.percentageCovered()
