@@ -54,7 +54,47 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 		}
 	}
 
+	functions := map[[4]byte]*Function{}
+
+	ss.Ast.visit(func(n solcASTNode) bool {
+		if n.Name == "FunctionDefinition" {
+			if !n.Attributes.IsConstructor {
+
+				argTypes := []string{}
+
+				n.visit(func(n solcASTNode) bool {
+					if n.Name == "ParameterList" {
+						for _, plc := range n.Children {
+							argTypes = append(argTypes, plc.Attributes.Type)
+						}
+						return false
+					}
+					return true
+				})
+
+				n := n.Attributes.Name
+				h := sha3.NewKeccak256()
+				fn := fmt.Sprintf("%s(%s)", n, strings.Join(argTypes, ","))
+				_, err = h.Write([]byte(fn))
+				if err != nil {
+					panic(err)
+				}
+				sum := h.Sum(nil)
+
+				key := [4]byte{}
+				copy(key[:], sum)
+
+				functions[key] = &Function{
+					name: fn,
+				}
+				return false
+			}
+		}
+		return true
+	})
+
 	return &contract{
+		name:         name,
 		source:       source,
 		coverage:     cov,
 		pcToIndex:    con.pcToInstructionMapping(),
@@ -62,10 +102,13 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 		hash:         common.BytesToHash(hash),
 		skipCoverage: skip,
 		sourceIndex:  sourceIndex,
+		functions:    functions,
+		addresses:    map[common.Address]struct{}{},
 	}, nil
 }
 
 type contract struct {
+	name     string
 	source   []byte
 	coverage []byte
 	// sc           *solcCombined
@@ -74,12 +117,51 @@ type contract struct {
 	hash         common.Hash
 	skipCoverage []bool
 	sourceIndex  int
+	functions    map[[4]byte]*Function
+	addresses    map[common.Address]struct{}
 }
 
-func (c *contract) executed(codeHash common.Hash, pc uint64) {
+type Function struct {
+	name    string
+	gasUsed []uint64
+}
+
+func (c *contract) hasAnyGasInformation() bool {
+	for _, f := range c.functions {
+		if len(f.gasUsed) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *contract) transactionCommited(to common.Address, data []byte, gasUsed uint64) {
+
+	_, found := c.addresses[to]
+	if !found {
+		return
+	}
+
+	if len(data) < 4 {
+		return
+	}
+
+	prefix := [4]byte{}
+	copy(prefix[:], data)
+	f, found := c.functions[prefix]
+	if found {
+		f.gasUsed = append(f.gasUsed, gasUsed)
+	}
+
+}
+
+func (c *contract) executed(codeHash common.Hash, pc uint64, contractAddress common.Address) {
 	if codeHash != c.hash {
 		return
 	}
+
+	c.addresses[contractAddress] = struct{}{}
+
 	idx, f := c.pcToIndex[pc]
 	if !f {
 		panic(fmt.Errorf("Could not find instruction index for pc %d of contract with hash %s", pc, c.hash.Hex()))
@@ -172,7 +254,9 @@ type solcSource struct {
 }
 
 type solcAttributes struct {
-	IsConstructor bool `json:"isConstructor"`
+	IsConstructor bool   `json:"isConstructor"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
 }
 
 type solcASTNode struct {

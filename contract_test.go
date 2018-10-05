@@ -1,7 +1,8 @@
-package test
+package ethertest_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -15,7 +16,7 @@ func TestContract(t *testing.T) {
 	var owner = ethertest.NewWallet()
 
 	tr.AddGenesisAccountAllocation(owner.Address(), ethertest.EthToWei(100))
-	tr.AddCoverageForContracts("./build/test/combined.json", "contracts/test.sol")
+	tr.AddCoverageForContracts("./test/build/test/combined.json", "test/contracts/test.sol")
 
 	require := require.New(t)
 	be := tr.NewTestBackend()
@@ -40,4 +41,5 @@ func TestContract(t *testing.T) {
 	require.Equal("new value", value)
 
 	tr.ExpectMinimumCoverage("test.sol:Test", 100.0)
+	tr.PrintGasUsage(os.Stdout)
 }
