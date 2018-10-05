@@ -19,6 +19,8 @@ require (
 	github.com/logrusorgru/aurora v0.0.0-20180419164547-d694e6f975a9
 	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.4 // indirect
+	github.com/mattn/go-runewidth v0.0.3 // indirect
+	github.com/olekukonko/tablewriter v0.0.0-20180912035003-be2c049b30cc
 	github.com/onsi/ginkgo v1.6.0
 	github.com/onsi/gomega v1.4.2
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect

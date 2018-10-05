@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,7 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/olekukonko/tablewriter"
 	"github.com/tokencard/ethertest/backends"
+	"github.com/tokencard/ethertest/stats"
 )
 
 // TestRig ...
@@ -43,12 +47,52 @@ type TestBackend interface {
 	AdjustTime(adjustment time.Duration) error
 }
 
+type interceptingBackend struct {
+	TestBackend
+	sentTransactions []*types.Transaction
+	tr               *TestRig
+}
+
+func (ib *interceptingBackend) Commit() {
+	ib.TestBackend.Commit()
+
+	for _, t := range ib.sentTransactions {
+		r, err := ib.TransactionReceipt(context.Background(), t.Hash())
+		if err != nil {
+			panic(err)
+		}
+
+		for _, c := range ib.tr.contracts {
+			to := t.To()
+			if to != nil {
+				c.transactionCommited(*to, t.Data(), r.GasUsed)
+			}
+		}
+
+	}
+}
+
+func (ib *interceptingBackend) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+
+	err := ib.TestBackend.SendTransaction(ctx, tx)
+	if err != nil {
+		return err
+	}
+	ib.sentTransactions = append(ib.sentTransactions, tx)
+	return nil
+}
+
 // NewTestBackend creates a new instance of TestBackend
 func (t *TestRig) NewTestBackend() TestBackend {
-	return backends.NewSimulatedBackend(t.genesisAlloc, 7981579, vm.Config{
+	sb := backends.NewSimulatedBackend(t.genesisAlloc, 7981579, vm.Config{
 		Debug:  true,
 		Tracer: t,
 	})
+
+	return &interceptingBackend{
+		TestBackend: sb,
+		tr:          t,
+	}
 }
 
 // AddGenesisAccountAllocation adds a GenesisAccount allocation to the test rig.
@@ -109,6 +153,41 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractFiles ...
 	return t
 }
 
+func (t *TestRig) PrintGasUsage(w io.Writer) {
+	for _, c := range t.contracts {
+
+		if !c.hasAnyGasInformation() {
+			continue
+		}
+
+		tw := tablewriter.NewWriter(w)
+		fmt.Fprintf(w, "Gas Usage for %q\n", c.name)
+		tw.SetHeader([]string{"Function Name", "Min", "Med", "Max"})
+
+		functions := []*Function{}
+		for _, f := range c.functions {
+			functions = append(functions, f)
+		}
+
+		sort.Slice(functions, func(i int, j int) bool {
+			return functions[i].name < functions[j].name
+		})
+
+		for _, f := range functions {
+			tw.Append([]string{
+				f.name,
+				fmt.Sprintf("%d", stats.Uint64Min(f.gasUsed)),
+				fmt.Sprintf("%d", stats.Uint64Median(f.gasUsed)),
+				fmt.Sprintf("%d", stats.Uint64Max(f.gasUsed)),
+			},
+			)
+		}
+		tw.Render()
+		fmt.Fprintln(w)
+	}
+
+}
+
 func (t *TestRig) CoverageOf(name string) float64 {
 	c, found := t.contracts[name]
 	if !found {
@@ -147,8 +226,9 @@ func (t *TestRig) CaptureStart(from common.Address, to common.Address, call bool
 	return nil
 }
 func (t *TestRig) CaptureState(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, memory *vm.Memory, stack *vm.Stack, contract *vm.Contract, depth int, err error) error {
+
 	for _, c := range t.contracts {
-		c.executed(contract.CodeHash, pc)
+		c.executed(contract.CodeHash, pc, contract.Address())
 	}
 
 	return nil
