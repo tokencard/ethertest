@@ -70,6 +70,7 @@ func (ib *interceptingBackend) Commit() {
 		}
 
 	}
+	ib.sentTransactions = nil
 }
 
 func (ib *interceptingBackend) SendTransaction(ctx context.Context, tx *types.Transaction) error {
