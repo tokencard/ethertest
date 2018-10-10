@@ -61,24 +61,23 @@ type SimulatedBackend struct {
 	events *filters.EventSystem // Event system for filtering log events live
 
 	config *params.ChainConfig
-
-	vmc vm.Config
+	vmc    vm.Config
 }
 
 // NewSimulatedBackend creates a new binding backend using a simulated blockchain
 // for testing purposes.
-func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64, vmc vm.Config) *SimulatedBackend {
+func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64, cfg vm.Config) *SimulatedBackend {
 	database := ethdb.NewMemDatabase()
-	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, GasLimit: gasLimit, Alloc: alloc, Timestamp: uint64(time.Now().Add(-124 * time.Second).Unix())}
+	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, GasLimit: gasLimit, Alloc: alloc, Timestamp: uint64(time.Now().Add(-96 * time.Hour).Unix())}
 	genesis.MustCommit(database)
-	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vmc, nil)
+	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), cfg, nil)
 
 	backend := &SimulatedBackend{
 		database:   database,
 		blockchain: blockchain,
 		config:     genesis.Config,
 		events:     filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false),
-		vmc:        vmc,
+		vmc:        cfg,
 	}
 	backend.rollback()
 	return backend
@@ -211,7 +210,7 @@ func (b *SimulatedBackend) PendingNonceAt(ctx context.Context, account common.Ad
 }
 
 // SuggestGasPrice implements ContractTransactor.SuggestGasPrice. Since the simulated
-// chain doens't have miners, we just return a gas price of 1 for any call.
+// chain doesn't have miners, we just return a gas price of 1 for any call.
 func (b *SimulatedBackend) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 	return big.NewInt(1), nil
 }

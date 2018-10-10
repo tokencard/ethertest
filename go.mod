@@ -7,7 +7,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set v1.7.1 // indirect
 	github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712 // indirect
-	github.com/ethereum/go-ethereum v1.8.16
+	github.com/ethereum/go-ethereum v1.8.17
 	github.com/fjl/memsize v0.0.0-20180929194037-2a09253e352a // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
@@ -32,7 +32,6 @@ require (
 	golang.org/x/crypto v0.0.0-20180927165925-5295e8364332 // indirect
 	golang.org/x/net v0.0.0-20180926154720-4dfa2610cdf3 // indirect
 	golang.org/x/sys v0.0.0-20180928133829-e4b3c5e90611 // indirect
-	golang.org/x/tools v0.0.0-20180928181343-b3c0be4c978b // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
 )

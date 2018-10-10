@@ -75,13 +75,31 @@ func (w *Wallet) Transfer(be TestBackend, to common.Address, amount *big.Int) er
 	return nil
 }
 
-func (w *Wallet) TransactOpts() *bind.TransactOpts {
-	return bind.NewKeyedTransactor(w.pk)
+type TransactionOptionModifier func(*bind.TransactOpts)
+
+func WithGasLimit(gasLimit uint64) func(*bind.TransactOpts) {
+	return func(to *bind.TransactOpts) {
+		to.GasLimit = gasLimit
+	}
 }
 
-func (w *Wallet) TransactOptsWithGasLimit(gasLimit uint64) *bind.TransactOpts {
+func WithGasPrice(gasPrice *big.Int) func(*bind.TransactOpts) {
+	return func(to *bind.TransactOpts) {
+		to.GasPrice = gasPrice
+	}
+}
+
+func WithValue(value *big.Int) func(*bind.TransactOpts) {
+	return func(to *bind.TransactOpts) {
+		to.Value = value
+	}
+}
+
+func (w *Wallet) TransactOpts(modifiers ...TransactionOptionModifier) *bind.TransactOpts {
 	to := bind.NewKeyedTransactor(w.pk)
-	to.GasLimit = gasLimit
+	for _, m := range modifiers {
+		m(to)
+	}
 	return to
 }
 
