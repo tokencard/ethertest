@@ -14,7 +14,7 @@ import (
 
 var ErrTransactionFailed = errors.New("Transaction Failed")
 
-func NewWallet() *Wallet {
+func NewAccount() *Account {
 	k, err := crypto.GenerateKey()
 
 	// will only happen if RNG fails big time
@@ -22,26 +22,26 @@ func NewWallet() *Wallet {
 		panic(err)
 	}
 
-	return &Wallet{k}
+	return &Account{k}
 }
 
-type Wallet struct {
+type Account struct {
 	pk *ecdsa.PrivateKey
 }
 
-func (w *Wallet) Address() common.Address {
-	return crypto.PubkeyToAddress(w.pk.PublicKey)
+func (a *Account) Address() common.Address {
+	return crypto.PubkeyToAddress(a.pk.PublicKey)
 }
 
-func (w *Wallet) MustTransfer(be TestBackend, to common.Address, amount *big.Int) {
-	err := w.Transfer(be, to, amount)
+func (a *Account) MustTransfer(be TestBackend, to common.Address, amount *big.Int) {
+	err := a.Transfer(be, to, amount)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (w *Wallet) Transfer(be TestBackend, to common.Address, amount *big.Int) error {
-	n, err := be.PendingNonceAt(context.Background(), w.Address())
+func (a *Account) Transfer(be TestBackend, to common.Address, amount *big.Int) error {
+	n, err := be.PendingNonceAt(context.Background(), a.Address())
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (w *Wallet) Transfer(be TestBackend, to common.Address, amount *big.Int) er
 
 	tx := types.NewTransaction(n, to, amount, 41000, gasPrice, nil)
 
-	signed, err := types.SignTx(tx, types.HomesteadSigner{}, w.pk)
+	signed, err := types.SignTx(tx, types.HomesteadSigner{}, a.pk)
 	if err != nil {
 		return err
 	}
@@ -95,16 +95,16 @@ func WithValue(value *big.Int) func(*bind.TransactOpts) {
 	}
 }
 
-func (w *Wallet) TransactOpts(modifiers ...TransactionOptionModifier) *bind.TransactOpts {
-	to := bind.NewKeyedTransactor(w.pk)
+func (a *Account) TransactOpts(modifiers ...TransactionOptionModifier) *bind.TransactOpts {
+	to := bind.NewKeyedTransactor(a.pk)
 	for _, m := range modifiers {
 		m(to)
 	}
 	return to
 }
 
-func (w *Wallet) Balance(be TestBackend) *big.Int {
-	b, err := be.BalanceAt(context.Background(), w.Address(), nil)
+func (a *Account) Balance(be TestBackend) *big.Int {
+	b, err := be.BalanceAt(context.Background(), a.Address(), nil)
 	if err != nil {
 		panic(err)
 	}

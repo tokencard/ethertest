@@ -13,7 +13,7 @@ import (
 
 func TestContract(t *testing.T) {
 	var tr = ethertest.NewTestRig()
-	var owner = ethertest.NewWallet()
+	var owner = ethertest.NewAccount()
 
 	tr.AddGenesisAccountAllocation(owner.Address(), ethertest.EthToWei(100))
 	tr.AddCoverageForContracts("./test/build/test/combined.json", "test/contracts/test.sol")
