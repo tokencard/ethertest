@@ -66,9 +66,14 @@ type SimulatedBackend struct {
 
 // NewSimulatedBackend creates a new binding backend using a simulated blockchain
 // for testing purposes.
-func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64, cfg vm.Config) *SimulatedBackend {
+func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64, cfg vm.Config, blockchainTime time.Time) *SimulatedBackend {
 	database := ethdb.NewMemDatabase()
-	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, GasLimit: gasLimit, Alloc: alloc, Timestamp: uint64(time.Now().Add(-96 * time.Hour).Unix())}
+	genesis := core.Genesis{
+		Config:    params.AllEthashProtocolChanges,
+		GasLimit:  gasLimit,
+		Alloc:     alloc,
+		Timestamp: uint64(blockchainTime.Unix()),
+	}
 	genesis.MustCommit(database)
 	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), cfg, nil)
 

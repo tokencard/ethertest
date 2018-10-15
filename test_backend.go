@@ -83,12 +83,47 @@ func (ib *interceptingBackend) SendTransaction(ctx context.Context, tx *types.Tr
 	return nil
 }
 
+type backendOption func(*backendOptions)
+
+type backendOptions struct {
+	blockchainTime time.Time
+	blockGasLimit  uint64
+}
+
+// WithBlockchainTime sets the initial time on the blockchain.
+// If not set, it will default to 1970-01-01T00:00:00Z
+// Warning: every commit() will increase the time by 15 seconds.
+// Once the blockchain time takes over the current time,
+// simulated backend will not accept new blocks.
+func WithBlockchainTime(t time.Time) func(*backendOptions) {
+	return func(opt *backendOptions) {
+		opt.blockchainTime = t
+	}
+}
+
+// WithBlockGasLimit sets the block limit.
+// If not set, it will default to 7981579.
+func WithBlockGasLimit(limit uint64) func(*backendOptions) {
+	return func(opt *backendOptions) {
+		opt.blockGasLimit = limit
+	}
+}
+
 // NewTestBackend creates a new instance of TestBackend
-func (t *TestRig) NewTestBackend() TestBackend {
-	sb := backends.NewSimulatedBackend(t.genesisAlloc, 7981579, vm.Config{
+func (t *TestRig) NewTestBackend(opts ...backendOption) TestBackend {
+
+	backendOptions := &backendOptions{
+		blockGasLimit:  7981579,
+		blockchainTime: time.Unix(0, 0),
+	}
+	for _, opt := range opts {
+		opt(backendOptions)
+	}
+
+	sb := backends.NewSimulatedBackend(t.genesisAlloc, backendOptions.blockGasLimit, vm.Config{
 		Debug:  true,
 		Tracer: t,
-	})
+	}, backendOptions.blockchainTime)
 
 	return &interceptingBackend{
 		TestBackend: sb,

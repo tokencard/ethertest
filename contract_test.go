@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestContract(t *testing.T) {
 	tr.AddCoverageForContracts("./test/build/test/combined.json", "test/contracts/test.sol")
 
 	require := require.New(t)
-	be := tr.NewTestBackend()
+	be := tr.NewTestBackend(ethertest.WithBlockGasLimit(8000000), ethertest.WithBlockchainTime(time.Now().Add(-24*time.Hour)))
 	_, tx, testBinding, err := bindings.DeployTest(owner.TransactOpts(), be, "initial value")
 	require.Nil(err)
 	be.Commit()
