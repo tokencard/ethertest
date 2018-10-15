@@ -1,27 +1,156 @@
 package ethertest
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	. "github.com/logrusorgru/aurora"
 	"github.com/tokencard/ethertest/srcmap"
 )
 
-func newContract(name string, source []byte, ss solcSource, con *solcContract, sourceIndex int) (*contract, error) {
-	cov := make([]byte, len(source))
+type sourceCodeCoverage struct {
+	name        string
+	source      []byte
+	coverage    []byte
+	sourceIndex int
+}
 
-	type rr struct {
-		from int
-		to   int
+func newSourceCodeCoverage(name string, source []byte, sourceIndex int) *sourceCodeCoverage {
+	return &sourceCodeCoverage{
+		name:        name,
+		source:      source,
+		coverage:    make([]byte, len(source)),
+		sourceIndex: sourceIndex,
+	}
+}
+
+func (s *sourceCodeCoverage) percentageCovered() float64 {
+	green := 0
+	red := 0
+	for _, c := range s.coverage {
+		switch c {
+		case 'R':
+			red++
+		case 'G':
+			green++
+		}
+	}
+	if green == 0 && red == 0 {
+		return 100.0
+	}
+	return float64(green) / (float64(red) + float64(green)) * 100.0
+}
+
+func (s *sourceCodeCoverage) paintGreen(from, length, sourceIndex int) {
+	if sourceIndex != s.sourceIndex {
+		return
 	}
 
-	sha := sha3.NewKeccak256()
-	sha.Write([]byte(con.contractBinary()))
-	hash := sha.Sum(nil)
-	sm, err := con.runtimeScrmap()
+	for i := from; i < from+length; i++ {
+		if s.coverage[i] == 'R' {
+			s.coverage[i] = 'G'
+		}
+	}
+}
+
+func (s *sourceCodeCoverage) paintRed(from, length, sourceIndex int) error {
+	if sourceIndex != s.sourceIndex {
+		return nil
+	}
+
+	for i := from; i < from+length; i++ {
+		if i >= len(s.coverage) {
+			return fmt.Errorf("combined.json of %s seems to be out of date", s.name)
+		}
+		s.coverage[i] = 'R'
+	}
+
+	return nil
+}
+
+func (s *sourceCodeCoverage) Print() {
+	for from := 0; from < len(s.source); {
+		to := from + 1
+		for to < len(s.source) && s.coverage[to] == s.coverage[from] {
+			to++
+		}
+		text := string(s.source[from:to])
+		if s.coverage[from] == 'R' {
+			fmt.Print(Red(text))
+		} else if s.coverage[from] == 'G' {
+			fmt.Print(Green(text))
+		} else {
+			fmt.Print(text)
+		}
+		from = to
+	}
+
+}
+
+type bytecodeWithMapping struct {
+	hash          common.Hash
+	sourcemap     []srcmap.Entry
+	pcToIndex     map[uint64]int
+	skipCoverage  []bool
+	coverage      *sourceCodeCoverage
+	binary        []byte
+	isConstructor bool
+}
+
+func (b *bytecodeWithMapping) executed(pc uint64, contractAddress common.Address, contract *vm.Contract) bool {
+	if contract.CodeHash != b.hash {
+		return false
+	}
+
+	if len(b.binary) == 0 {
+		return false
+	}
+
+	if b.isConstructor {
+		c := contract.Code
+		if len(c) < len(b.binary) {
+			return false
+		}
+		if bytes.Compare(contract.Code[:len(b.binary)], b.binary) != 0 {
+			return false
+		}
+	}
+
+	idx, f := b.pcToIndex[pc]
+	if !f {
+		panic(fmt.Errorf("Could not find instruction index for pc %d of contract with hash %s", pc, b.hash.Hex()))
+	} else {
+		if !b.skipCoverage[idx] {
+			sm := b.sourcemap[idx]
+			b.coverage.paintGreen(sm.S, sm.L, sm.F)
+		}
+	}
+	return true
+}
+
+func newBytecodeMapping(contractHex string, codeCoverage *sourceCodeCoverage, smap string, ast solcASTNode, isConstructor bool) (*bytecodeWithMapping, error) {
+
+	contractBinary := common.Hex2Bytes(contractHex)
+
+	hash := common.Hash{}
+
+	if !isConstructor {
+		sha := sha3.NewKeccak256()
+		_, err := sha.Write(contractBinary)
+		if err != nil {
+			return nil, err
+		}
+		s := sha.Sum(nil)
+		copy(hash[:], s)
+	}
+
+	ptoi := pcToInstructionMapping(contractBinary)
+
+	sm, err := srcmap.Uncompress(smap)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +158,7 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 
 	for i, sme := range sm {
 
-		as, found := ss.Ast.findBySrcPrefix(fmt.Sprintf("%d:%d:", sme.S, sme.L))
+		as, found := ast.findBySrcPrefix(fmt.Sprintf("%d:%d:", sme.S, sme.L))
 		if found {
 			switch as.Name {
 			case
@@ -45,16 +174,28 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 		}
 
 		for i := sme.S; i < sme.S+sme.L; i++ {
-			if sme.F == sourceIndex {
-				if i >= len(cov) {
-					return nil, fmt.Errorf("combined.json of %s seems to be out of date", name)
-				}
-				cov[i] = 'R'
+			err = codeCoverage.paintRed(sme.S, sme.L, sme.F)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
 
+	return &bytecodeWithMapping{
+		binary:        contractBinary,
+		hash:          hash,
+		sourcemap:     sm,
+		pcToIndex:     ptoi,
+		skipCoverage:  skip,
+		coverage:      codeCoverage,
+		isConstructor: isConstructor,
+	}, nil
+}
+
+func newContract(name string, source []byte, ss solcSource, con *solcContract, sourceIndex int) (*contract, error) {
 	functions := map[[4]byte]*Function{}
+
+	var err error
 
 	ss.Ast.visit(func(n solcASTNode) bool {
 		if n.Name == "FunctionDefinition" {
@@ -77,7 +218,7 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 				fn := fmt.Sprintf("%s(%s)", n, strings.Join(argTypes, ","))
 				_, err = h.Write([]byte(fn))
 				if err != nil {
-					panic(err)
+					return false
 				}
 				sum := h.Sum(nil)
 
@@ -92,33 +233,37 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 		}
 		return true
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	sourceCodeCoverage := newSourceCodeCoverage(name, source, sourceIndex)
+
+	runtimeMapping, err := newBytecodeMapping(con.BinRuntime, sourceCodeCoverage, con.SrcmapRuntime, ss.Ast, false)
+	if err != nil {
+		return nil, err
+	}
+
+	constructorMapping, err := newBytecodeMapping(con.Bin, sourceCodeCoverage, con.Srcmap, ss.Ast, true)
+	if err != nil {
+		return nil, err
+	}
 
 	return &contract{
-		name:         name,
-		source:       source,
-		coverage:     cov,
-		pcToIndex:    con.pcToInstructionMapping(),
-		sourcemap:    sm,
-		hash:         common.BytesToHash(hash),
-		skipCoverage: skip,
-		sourceIndex:  sourceIndex,
-		functions:    functions,
-		addresses:    map[common.Address]struct{}{},
+		name:               name,
+		sourceCodeCoverage: sourceCodeCoverage,
+		mappings:           []*bytecodeWithMapping{runtimeMapping, constructorMapping},
+		functions:          functions,
+		addresses:          map[common.Address]struct{}{},
 	}, nil
 }
 
 type contract struct {
-	name     string
-	source   []byte
-	coverage []byte
-	// sc           *solcCombined
-	pcToIndex    map[uint64]int
-	sourcemap    []srcmap.Entry
-	hash         common.Hash
-	skipCoverage []bool
-	sourceIndex  int
-	functions    map[[4]byte]*Function
-	addresses    map[common.Address]struct{}
+	name string
+	*sourceCodeCoverage
+	mappings  []*bytecodeWithMapping
+	functions map[[4]byte]*Function
+	addresses map[common.Address]struct{}
 }
 
 type Function struct {
@@ -155,63 +300,15 @@ func (c *contract) transactionCommited(to common.Address, data []byte, gasUsed u
 
 }
 
-func (c *contract) executed(codeHash common.Hash, pc uint64, contractAddress common.Address) {
-	if codeHash != c.hash {
-		return
-	}
+func (c *contract) executed(pc uint64, contractAddress common.Address, contract *vm.Contract) {
 
-	c.addresses[contractAddress] = struct{}{}
-
-	idx, f := c.pcToIndex[pc]
-	if !f {
-		panic(fmt.Errorf("Could not find instruction index for pc %d of contract with hash %s", pc, c.hash.Hex()))
-	} else {
-		if !c.skipCoverage[idx] {
-			sm := c.sourcemap[idx]
-			for i := sm.S; i < sm.S+sm.L; i++ {
-				if sm.F == c.sourceIndex && c.coverage[i] == 'R' {
-					c.coverage[i] = 'G'
-				}
-			}
+	for _, m := range c.mappings {
+		matched := m.executed(pc, contractAddress, contract)
+		if matched {
+			c.addresses[contractAddress] = struct{}{}
 		}
 	}
 
-}
-
-func (c *contract) Print() {
-	for from := 0; from < len(c.source); {
-		to := from + 1
-		for to < len(c.source) && c.coverage[to] == c.coverage[from] {
-			to++
-		}
-		text := string(c.source[from:to])
-		if c.coverage[from] == 'R' {
-			fmt.Print(Red(text))
-		} else if c.coverage[from] == 'G' {
-			fmt.Print(Green(text))
-		} else {
-			fmt.Print(text)
-		}
-		from = to
-	}
-
-}
-
-func (c *contract) percentageCovered() float64 {
-	green := 0
-	red := 0
-	for _, c := range c.coverage {
-		switch c {
-		case 'R':
-			red++
-		case 'G':
-			green++
-		}
-	}
-	if green == 0 && red == 0 {
-		return 100.0
-	}
-	return float64(green) / (float64(red) + float64(green)) * 100.0
 }
 
 type solcCombined struct {
@@ -234,6 +331,8 @@ func (s solcCombined) findSourceIndex(name string) int {
 type solcContract struct {
 	BinRuntime    string  `json:"bin-runtime"`
 	SrcmapRuntime string  `json:"srcmap-runtime"`
+	Bin           string  `json:"bin"`
+	Srcmap        string  `json:"srcmap"`
 	Asm           solcAsm `json:"asm"`
 }
 
@@ -311,17 +410,8 @@ func (n solcASTNode) visit(f func(n solcASTNode) bool) {
 	}
 }
 
-func (sc *solcContract) runtimeScrmap() (srcmap.Map, error) {
-	return srcmap.Uncompress(sc.SrcmapRuntime)
-}
-
-func (sc *solcContract) contractBinary() []byte {
-	return common.Hex2Bytes(sc.BinRuntime)
-}
-
-func (sc *solcContract) pcToInstructionMapping() map[uint64]int {
+func pcToInstructionMapping(b []byte) map[uint64]int {
 	mapping := map[uint64]int{}
-	b := sc.contractBinary()
 	cnt := 0
 	for i := uint64(0); i < uint64(len(b)); i++ {
 		mapping[i] = cnt
@@ -332,17 +422,4 @@ func (sc *solcContract) pcToInstructionMapping() map[uint64]int {
 		cnt++
 	}
 	return mapping
-}
-
-func (sc *solcContract) countInstructions() int {
-	b := sc.contractBinary()
-	cnt := 0
-	for i := 0; i < len(b); i++ {
-		cnt++
-		opcode := b[i]
-		if opcode <= 0x7f && opcode >= 0x60 {
-			i += int(opcode) - 0x60 + 1
-		}
-	}
-	return cnt
 }

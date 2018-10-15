@@ -226,14 +226,16 @@ func (t *TestRig) ExpectMinimumCoverage(name string, expectedCoverage float64) {
 func (t *TestRig) CaptureStart(from common.Address, to common.Address, call bool, input []byte, gas uint64, value *big.Int) error {
 	return nil
 }
+
 func (t *TestRig) CaptureState(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, memory *vm.Memory, stack *vm.Stack, contract *vm.Contract, depth int, err error) error {
 
 	for _, c := range t.contracts {
-		c.executed(contract.CodeHash, pc, contract.Address())
+		c.executed(pc, contract.Address(), contract)
 	}
 
 	return nil
 }
+
 func (t *TestRig) CaptureFault(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, memory *vm.Memory, stack *vm.Stack, contract *vm.Contract, depth int, err error) error {
 	return nil
 }
