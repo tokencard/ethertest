@@ -40,6 +40,10 @@ func (a *Account) MustTransfer(be TestBackend, to common.Address, amount *big.In
 	}
 }
 
+func (a *Account) SignTransaction(be TestBackend, tx *types.Transaction) (*types.Transaction, error) {
+	return types.SignTx(tx, types.HomesteadSigner{}, a.pk)
+}
+
 func (a *Account) Transfer(be TestBackend, to common.Address, amount *big.Int) error {
 	n, err := be.PendingNonceAt(context.Background(), a.Address())
 	if err != nil {
