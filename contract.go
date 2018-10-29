@@ -92,6 +92,8 @@ func (s *sourceCodeCoverage) Print() {
 }
 
 type bytecodeWithMapping struct {
+	name          string
+	tracer        *tracer
 	hash          common.Hash
 	sourcemap     []srcmap.Entry
 	pcToIndex     map[uint64]int
@@ -124,15 +126,18 @@ func (b *bytecodeWithMapping) executed(pc uint64, contractAddress common.Address
 	if !f {
 		panic(fmt.Errorf("Could not find instruction index for pc %d of contract with hash %s", pc, b.hash.Hex()))
 	} else {
+		sm := b.sourcemap[idx]
 		if !b.skipCoverage[idx] {
-			sm := b.sourcemap[idx]
 			b.coverage.paintGreen(sm.S, sm.L, sm.F)
+			if sm.F == b.coverage.sourceIndex {
+				b.tracer.executed(b.name, string(b.coverage.source), sm.S, sm.S+sm.L)
+			}
 		}
 	}
 	return true
 }
 
-func newBytecodeMapping(contractHex string, codeCoverage *sourceCodeCoverage, smap string, ast solcASTNode, isConstructor bool) (*bytecodeWithMapping, error) {
+func newBytecodeMapping(t *tracer, name, contractHex string, codeCoverage *sourceCodeCoverage, smap string, ast solcASTNode, isConstructor bool) (*bytecodeWithMapping, error) {
 
 	contractBinary := common.Hex2Bytes(contractHex)
 
@@ -182,6 +187,8 @@ func newBytecodeMapping(contractHex string, codeCoverage *sourceCodeCoverage, sm
 	}
 
 	return &bytecodeWithMapping{
+		name:          name,
+		tracer:        t,
 		binary:        contractBinary,
 		hash:          hash,
 		sourcemap:     sm,
@@ -192,7 +199,7 @@ func newBytecodeMapping(contractHex string, codeCoverage *sourceCodeCoverage, sm
 	}, nil
 }
 
-func newContract(name string, source []byte, ss solcSource, con *solcContract, sourceIndex int) (*contract, error) {
+func newContract(name string, t *tracer, source []byte, ss solcSource, con *solcContract, sourceIndex int) (*contract, error) {
 	functions := map[[4]byte]*Function{}
 
 	var err error
@@ -239,12 +246,12 @@ func newContract(name string, source []byte, ss solcSource, con *solcContract, s
 
 	sourceCodeCoverage := newSourceCodeCoverage(name, source, sourceIndex)
 
-	runtimeMapping, err := newBytecodeMapping(con.BinRuntime, sourceCodeCoverage, con.SrcmapRuntime, ss.Ast, false)
+	runtimeMapping, err := newBytecodeMapping(t, name, con.BinRuntime, sourceCodeCoverage, con.SrcmapRuntime, ss.Ast, false)
 	if err != nil {
 		return nil, err
 	}
 
-	constructorMapping, err := newBytecodeMapping(con.Bin, sourceCodeCoverage, con.Srcmap, ss.Ast, true)
+	constructorMapping, err := newBytecodeMapping(t, name, con.Bin, sourceCodeCoverage, con.Srcmap, ss.Ast, true)
 	if err != nil {
 		return nil, err
 	}

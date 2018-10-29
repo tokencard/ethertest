@@ -2,6 +2,7 @@ package ethertest_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -41,6 +42,8 @@ func TestContract(t *testing.T) {
 	require.Nil(err)
 	require.Equal("new value", value)
 
+	tr.SaveTrace(os.Stdout)
 	tr.ExpectMinimumCoverage("test.sol:Test", 100.0)
 	tr.PrintGasUsage(os.Stdout)
+	fmt.Println(tr.LastExecuted())
 }

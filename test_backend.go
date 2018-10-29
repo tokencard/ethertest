@@ -27,6 +27,7 @@ import (
 type TestRig struct {
 	genesisAlloc core.GenesisAlloc
 	contracts    map[string]*contract
+	tracer       *tracer
 }
 
 // NewTestRig creates a new instance of a test rig
@@ -34,6 +35,7 @@ func NewTestRig() *TestRig {
 	return &TestRig{
 		genesisAlloc: core.GenesisAlloc{},
 		contracts:    map[string]*contract{},
+		tracer:       newTracer(),
 	}
 }
 
@@ -125,6 +127,8 @@ func (t *TestRig) NewTestBackend(opts ...backendOption) TestBackend {
 		Tracer: t,
 	}, backendOptions.blockchainTime)
 
+	t.tracer.reset()
+
 	return &interceptingBackend{
 		TestBackend: sb,
 		tr:          t,
@@ -177,7 +181,7 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractFiles ...
 		ss := sc.Sources[n]
 		for cn, scon := range sc.Contracts {
 			if scon.BinRuntime != "" && strings.HasPrefix(cn+":", n) {
-				con, err := newContract(cn, s, ss, scon, sourceIndex)
+				con, err := newContract(cn, t.tracer, s, ss, scon, sourceIndex)
 				if err != nil {
 					panic(err)
 				}
@@ -256,6 +260,14 @@ func (t *TestRig) ExpectMinimumCoverage(name string, expectedCoverage float64) {
 
 	fmt.Printf("\nCoverage for %q: %.2f%%\n", name, c.percentageCovered())
 
+}
+
+func (t *TestRig) SaveTrace(w io.Writer) error {
+	return json.NewEncoder(w).Encode(t.tracer.trace)
+}
+
+func (t *TestRig) LastExecuted() string {
+	return t.tracer.trace.LastStep()
 }
 
 func (t *TestRig) CaptureStart(from common.Address, to common.Address, call bool, input []byte, gas uint64, value *big.Int) error {
