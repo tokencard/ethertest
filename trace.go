@@ -1,6 +1,9 @@
 package ethertest
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type Contract struct {
 	Name   string `json:"name"`
@@ -32,6 +35,10 @@ type Step struct {
 	contractIndex int
 	from          int
 	to            int
+}
+
+func (s Step) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]int{s.contractIndex, s.from, s.to})
 }
 
 type Trace struct {
