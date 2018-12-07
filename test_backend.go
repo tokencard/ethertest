@@ -142,16 +142,7 @@ func (t *TestRig) AddGenesisAccountAllocation(a common.Address, balance *big.Int
 	return t
 }
 
-func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractFiles ...string) *TestRig {
-	sourceCode := map[string][]byte{}
-	for _, path := range contractFiles {
-		name := filepath.Base(path)
-		source, err := ioutil.ReadFile(path)
-		if err != nil {
-			panic(fmt.Errorf("Could not read %q: %s", path, err.Error()))
-		}
-		sourceCode[name] = source
-	}
+func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractsPath string, contractsToInclude []string) *TestRig {
 
 	f, err := os.Open(combinedJSON)
 	if err != nil {
@@ -164,6 +155,29 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractFiles ...
 
 	if err != nil {
 		panic(err)
+	}
+
+	sourceCode := map[string][]byte{}
+
+	for _, contractFile := range contractsToInclude {
+
+		_, found := sc.Sources[contractFile]
+
+		if !found {
+			available := []string{}
+			for cf := range sc.Sources {
+				available = append(available, cf)
+			}
+			sort.Strings(available)
+			panic(fmt.Errorf("Could not find contract %q, available: %#v", contractFile, available))
+		}
+
+		path := filepath.Join(contractsPath, contractFile)
+		source, err := ioutil.ReadFile(path)
+		if err != nil {
+			panic(fmt.Errorf("Could not read %q: %s", path, err.Error()))
+		}
+		sourceCode[contractFile] = source
 	}
 
 	for name := range sourceCode {
