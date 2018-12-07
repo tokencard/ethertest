@@ -39,52 +39,6 @@ func NewTestRig() *TestRig {
 	}
 }
 
-// TestBackend is interface to an go-ethereum test backend
-type TestBackend interface {
-	bind.ContractBackend
-	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
-	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
-	Commit()
-	Rollback()
-	AdjustTime(adjustment time.Duration) error
-}
-
-type interceptingBackend struct {
-	TestBackend
-	sentTransactions []*types.Transaction
-	tr               *TestRig
-}
-
-func (ib *interceptingBackend) Commit() {
-	ib.TestBackend.Commit()
-
-	for _, t := range ib.sentTransactions {
-		r, err := ib.TransactionReceipt(context.Background(), t.Hash())
-		if err != nil {
-			panic(err)
-		}
-
-		for _, c := range ib.tr.contracts {
-			to := t.To()
-			if to != nil {
-				c.transactionCommited(*to, t.Data(), r.GasUsed)
-			}
-		}
-
-	}
-	ib.sentTransactions = nil
-}
-
-func (ib *interceptingBackend) SendTransaction(ctx context.Context, tx *types.Transaction) error {
-
-	err := ib.TestBackend.SendTransaction(ctx, tx)
-	if err != nil {
-		return err
-	}
-	ib.sentTransactions = append(ib.sentTransactions, tx)
-	return nil
-}
-
 type backendOption func(*backendOptions)
 
 type backendOptions struct {
@@ -288,5 +242,51 @@ func (t *TestRig) CaptureFault(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost u
 }
 
 func (t *TestRig) CaptureEnd(output []byte, gasUsed uint64, tm time.Duration, err error) error {
+	return nil
+}
+
+// TestBackend is interface to an go-ethereum test backend
+type TestBackend interface {
+	bind.ContractBackend
+	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	Commit()
+	Rollback()
+	AdjustTime(adjustment time.Duration) error
+}
+
+type interceptingBackend struct {
+	TestBackend
+	sentTransactions []*types.Transaction
+	tr               *TestRig
+}
+
+func (ib *interceptingBackend) Commit() {
+	ib.TestBackend.Commit()
+
+	for _, t := range ib.sentTransactions {
+		r, err := ib.TransactionReceipt(context.Background(), t.Hash())
+		if err != nil {
+			panic(err)
+		}
+
+		for _, c := range ib.tr.contracts {
+			to := t.To()
+			if to != nil {
+				c.transactionCommited(*to, t.Data(), r.GasUsed)
+			}
+		}
+
+	}
+	ib.sentTransactions = nil
+}
+
+func (ib *interceptingBackend) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+
+	err := ib.TestBackend.SendTransaction(ctx, tx)
+	if err != nil {
+		return err
+	}
+	ib.sentTransactions = append(ib.sentTransactions, tx)
 	return nil
 }
