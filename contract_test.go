@@ -18,7 +18,7 @@ func TestContract(t *testing.T) {
 	var owner = ethertest.NewAccount()
 
 	tr.AddGenesisAccountAllocation(owner.Address(), ethertest.EthToWei(100))
-	tr.AddCoverageForContracts("./test/build/test/combined.json", "test/contracts/test.sol")
+	tr.AddCoverageForContracts("./test/build/test/combined.json", "test/contracts", []string{"test.sol"})
 
 	require := require.New(t)
 	be := tr.NewTestBackend(ethertest.WithBlockGasLimit(8000000), ethertest.WithBlockchainTime(time.Now().Add(-24*time.Hour)))
