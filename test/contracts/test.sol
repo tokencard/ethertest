@@ -1,6 +1,8 @@
 pragma solidity ^0.4.24;
 
-contract Test {
+import "./subdir/super.sol";
+
+contract Test is Super {
 
   string public value;
 
@@ -11,6 +13,10 @@ contract Test {
 
   function setValue(string _value) external {
     value = _value;
+  }
+
+  function willFail() external {
+    alwaysFails();
   }
 
 
