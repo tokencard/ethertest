@@ -27,6 +27,7 @@ import (
 type TestRig struct {
 	genesisAlloc core.GenesisAlloc
 	contracts    map[string]*contract
+	coverage     map[string]*sourceCodeCoverage
 	tracer       *tracer
 }
 
@@ -35,6 +36,7 @@ func NewTestRig() *TestRig {
 	return &TestRig{
 		genesisAlloc: core.GenesisAlloc{},
 		contracts:    map[string]*contract{},
+		coverage:     map[string]*sourceCodeCoverage{},
 		tracer:       newTracer(),
 	}
 }
@@ -142,7 +144,7 @@ func (t *TestRig) AddGenesisAccountAllocation(a common.Address, balance *big.Int
 	return t
 }
 
-func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractsPath string, contractsToInclude []string) *TestRig {
+func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractsPath string) *TestRig {
 
 	f, err := os.Open(combinedJSON)
 	if err != nil {
@@ -159,7 +161,9 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractsPath str
 
 	sourceCode := map[string][]byte{}
 
-	for _, contractFile := range contractsToInclude {
+	coverages := []*sourceCodeCoverage{}
+
+	for _, contractFile := range sc.SourceList {
 
 		_, found := sc.Sources[contractFile]
 
@@ -178,6 +182,12 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractsPath str
 			panic(fmt.Errorf("Could not read %q: %s", path, err.Error()))
 		}
 		sourceCode[contractFile] = source
+
+		scc := newSourceCodeCoverage(contractFile, source, sc.Sources[contractFile])
+
+		t.coverage[contractFile] = scc
+		coverages = append(coverages, scc)
+
 	}
 
 	for name := range sourceCode {
@@ -195,7 +205,7 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractsPath str
 		ss := sc.Sources[n]
 		for cn, scon := range sc.Contracts {
 			if scon.BinRuntime != "" && strings.HasPrefix(cn+":", n) {
-				con, err := newContract(cn, t.tracer, s, ss, scon, sourceIndex)
+				con, err := newContract(cn, t.tracer, s, ss, scon, coverages)
 				if err != nil {
 					panic(err)
 				}
@@ -243,10 +253,10 @@ func (t *TestRig) PrintGasUsage(w io.Writer) {
 }
 
 func (t *TestRig) CoverageOf(name string) float64 {
-	c, found := t.contracts[name]
+	c, found := t.coverage[name]
 	if !found {
 		keys := []string{}
-		for k := range t.contracts {
+		for k := range t.coverage {
 			keys = append(keys, k)
 		}
 
@@ -256,10 +266,10 @@ func (t *TestRig) CoverageOf(name string) float64 {
 }
 
 func (t *TestRig) ExpectMinimumCoverage(name string, expectedCoverage float64) {
-	c, found := t.contracts[name]
+	c, found := t.coverage[name]
 	if !found {
 		keys := []string{}
-		for k := range t.contracts {
+		for k := range t.coverage {
 			keys = append(keys, k)
 		}
 		panic(fmt.Errorf("Could not find contract %q, available: %q", name, keys))

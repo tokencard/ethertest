@@ -13,18 +13,18 @@ import (
 )
 
 type sourceCodeCoverage struct {
-	name        string
-	source      []byte
-	coverage    []byte
-	sourceIndex int
+	name     string
+	ast      solcSource
+	source   []byte
+	coverage []byte
 }
 
-func newSourceCodeCoverage(name string, source []byte, sourceIndex int) *sourceCodeCoverage {
+func newSourceCodeCoverage(name string, source []byte, ast solcSource) *sourceCodeCoverage {
 	return &sourceCodeCoverage{
-		name:        name,
-		source:      source,
-		coverage:    make([]byte, len(source)),
-		sourceIndex: sourceIndex,
+		name:     name,
+		ast:      ast,
+		source:   source,
+		coverage: make([]byte, len(source)),
 	}
 }
 
@@ -45,11 +45,7 @@ func (s *sourceCodeCoverage) percentageCovered() float64 {
 	return float64(green) / (float64(red) + float64(green)) * 100.0
 }
 
-func (s *sourceCodeCoverage) paintGreen(from, length, sourceIndex int) {
-	if sourceIndex != s.sourceIndex {
-		return
-	}
-
+func (s *sourceCodeCoverage) paintGreen(from, length int) {
 	for i := from; i < from+length; i++ {
 		if s.coverage[i] == 'R' {
 			s.coverage[i] = 'G'
@@ -57,10 +53,7 @@ func (s *sourceCodeCoverage) paintGreen(from, length, sourceIndex int) {
 	}
 }
 
-func (s *sourceCodeCoverage) paintRed(from, length, sourceIndex int) error {
-	if sourceIndex != s.sourceIndex {
-		return nil
-	}
+func (s *sourceCodeCoverage) paintRed(from, length int) error {
 
 	for i := from; i < from+length; i++ {
 		if i >= len(s.coverage) {
@@ -98,7 +91,7 @@ type bytecodeWithMapping struct {
 	sourcemap     []srcmap.Entry
 	pcToIndex     map[uint64]int
 	skipCoverage  []bool
-	coverage      *sourceCodeCoverage
+	coverages     []*sourceCodeCoverage
 	binary        []byte
 	isConstructor bool
 }
@@ -128,16 +121,17 @@ func (b *bytecodeWithMapping) executed(pc uint64, contractAddress common.Address
 	} else {
 		sm := b.sourcemap[idx]
 		if !b.skipCoverage[idx] {
-			b.coverage.paintGreen(sm.S, sm.L, sm.F)
-			if sm.F == b.coverage.sourceIndex {
-				b.tracer.executed(b.name, string(b.coverage.source), sm.S, sm.S+sm.L)
+			if sm.F >= 0 {
+				cov := b.coverages[sm.F]
+				cov.paintGreen(sm.S, sm.L)
+				b.tracer.executed(cov.name, string(cov.source), sm.S, sm.S+sm.L)
 			}
 		}
 	}
 	return true
 }
 
-func newBytecodeMapping(t *tracer, name, contractHex string, codeCoverage *sourceCodeCoverage, smap string, ast solcASTNode, isConstructor bool) (*bytecodeWithMapping, error) {
+func newBytecodeMapping(t *tracer, name, contractHex string, coverages []*sourceCodeCoverage, smap string, isConstructor bool) (*bytecodeWithMapping, error) {
 
 	contractBinary := common.Hex2Bytes(contractHex)
 
@@ -163,27 +157,35 @@ func newBytecodeMapping(t *tracer, name, contractHex string, codeCoverage *sourc
 
 	for i, sme := range sm {
 
-		as, found := ast.findBySrcPrefix(fmt.Sprintf("%d:%d:", sme.S, sme.L))
-		if found {
-			switch as.Name {
-			case
-				"ContractDefinition",
-				"IfStatement",
-				"FunctionDefinition",
-				"Block",
-				"PragmaDirective",
-				"SourceUnit":
-				skip[i] = true
-				continue
+		if sme.F >= 0 {
+			cov := coverages[sme.F]
+			ast := cov.ast.Ast
+			as, found := ast.findBySrcPrefix(fmt.Sprintf("%d:%d:", sme.S, sme.L))
+			if found {
+				switch as.Name {
+				case
+					"ContractDefinition",
+					"IfStatement",
+					"FunctionDefinition",
+					"Block",
+					"PragmaDirective",
+					"SourceUnit":
+					skip[i] = true
+					continue
+				}
 			}
+
+			for i := sme.S; i < sme.S+sme.L; i++ {
+				if sme.F >= 0 {
+					err = cov.paintRed(sme.S, sme.L)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+
 		}
 
-		for i := sme.S; i < sme.S+sme.L; i++ {
-			err = codeCoverage.paintRed(sme.S, sme.L, sme.F)
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	return &bytecodeWithMapping{
@@ -194,12 +196,12 @@ func newBytecodeMapping(t *tracer, name, contractHex string, codeCoverage *sourc
 		sourcemap:     sm,
 		pcToIndex:     ptoi,
 		skipCoverage:  skip,
-		coverage:      codeCoverage,
+		coverages:     coverages,
 		isConstructor: isConstructor,
 	}, nil
 }
 
-func newContract(name string, t *tracer, source []byte, ss solcSource, con *solcContract, sourceIndex int) (*contract, error) {
+func newContract(name string, t *tracer, source []byte, ss solcSource, con *solcContract, coverages []*sourceCodeCoverage) (*contract, error) {
 	functions := map[[4]byte]*Function{}
 
 	var err error
@@ -244,30 +246,30 @@ func newContract(name string, t *tracer, source []byte, ss solcSource, con *solc
 		return nil, err
 	}
 
-	sourceCodeCoverage := newSourceCodeCoverage(name, source, sourceIndex)
+	// sourceCodeCoverage := newSourceCodeCoverage(name, source, sourceIndex)
 
-	runtimeMapping, err := newBytecodeMapping(t, name, con.BinRuntime, sourceCodeCoverage, con.SrcmapRuntime, ss.Ast, false)
+	runtimeMapping, err := newBytecodeMapping(t, name, con.BinRuntime, coverages, con.SrcmapRuntime, false)
 	if err != nil {
 		return nil, err
 	}
 
-	constructorMapping, err := newBytecodeMapping(t, name, con.Bin, sourceCodeCoverage, con.Srcmap, ss.Ast, true)
+	constructorMapping, err := newBytecodeMapping(t, name, con.Bin, coverages, con.Srcmap, true)
 	if err != nil {
 		return nil, err
 	}
 
 	return &contract{
-		name:               name,
-		sourceCodeCoverage: sourceCodeCoverage,
-		mappings:           []*bytecodeWithMapping{runtimeMapping, constructorMapping},
-		functions:          functions,
-		addresses:          map[common.Address]struct{}{},
+		name:      name,
+		coverages: coverages,
+		mappings:  []*bytecodeWithMapping{runtimeMapping, constructorMapping},
+		functions: functions,
+		addresses: map[common.Address]struct{}{},
 	}, nil
 }
 
 type contract struct {
-	name string
-	*sourceCodeCoverage
+	name      string
+	coverages []*sourceCodeCoverage
 	mappings  []*bytecodeWithMapping
 	functions map[[4]byte]*Function
 	addresses map[common.Address]struct{}

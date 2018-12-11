@@ -18,7 +18,7 @@ func TestContract(t *testing.T) {
 	var owner = ethertest.NewAccount()
 
 	tr.AddGenesisAccountAllocation(owner.Address(), ethertest.EthToWei(100))
-	tr.AddCoverageForContracts("./test/build/test/combined.json", "test/contracts", []string{"test.sol"})
+	tr.AddCoverageForContracts("./test/build/test/combined.json", "test/contracts")
 
 	require := require.New(t)
 	be := tr.NewTestBackend(ethertest.WithBlockGasLimit(8000000), ethertest.WithBlockchainTime(time.Now().Add(-24*time.Hour)))
@@ -42,8 +42,12 @@ func TestContract(t *testing.T) {
 	require.Nil(err)
 	require.Equal("new value", value)
 
+	tx, err = testBinding.WillFail(owner.TransactOpts())
+	require.NotNil(err)
+
 	tr.SaveTrace(os.Stdout)
-	tr.ExpectMinimumCoverage("test.sol:Test", 100.0)
+	tr.ExpectMinimumCoverage("subdir/super.sol", 100.0)
+	tr.ExpectMinimumCoverage("test.sol", 100.0)
 	tr.PrintGasUsage(os.Stdout)
 	fmt.Println(tr.LastExecuted())
 }
