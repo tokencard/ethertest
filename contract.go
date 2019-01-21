@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
+	"golang.org/x/crypto/sha3"
 	. "github.com/logrusorgru/aurora"
 	"github.com/tokencard/ethertest/srcmap"
 )
@@ -138,7 +138,7 @@ func newBytecodeMapping(t *tracer, name, contractHex string, coverages []*source
 	hash := common.Hash{}
 
 	if !isConstructor {
-		sha := sha3.NewKeccak256()
+		sha := sha3.NewLegacyKeccak256()
 		_, err := sha.Write(contractBinary)
 		if err != nil {
 			return nil, err
@@ -223,7 +223,7 @@ func newContract(name string, t *tracer, source []byte, ss solcSource, con *solc
 				})
 
 				n := n.Attributes.Name
-				h := sha3.NewKeccak256()
+				h := sha3.NewLegacyKeccak256()
 				fn := fmt.Sprintf("%s(%s)", n, strings.Join(argTypes, ","))
 				_, err = h.Write([]byte(fn))
 				if err != nil {
