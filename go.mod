@@ -1,7 +1,7 @@
 module github.com/tokencard/ethertest
 
 require (
-	github.com/allegro/bigcache v1.1.0 // indirect
+	github.com/allegro/bigcache v1.1.1-0.20190116153254-84a0ff3f153c // indirect
 	github.com/aristanetworks/goarista v0.0.0-20180907105523-ff33da284e76 // indirect
 	github.com/btcsuite/btcd v0.0.0-20180924021209-2a560b2036be // indirect
 	github.com/cespare/cp v1.0.0 // indirect
@@ -25,10 +25,9 @@ require (
 	github.com/onsi/ginkgo v1.6.0
 	github.com/onsi/gomega v1.4.2
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/rs/cors v1.5.0 // indirect
-	github.com/stretchr/testify v1.2.2
+	github.com/stretchr/testify v1.3.0
 	github.com/syndtr/goleveldb v0.0.0-20180815032940-ae2bd5eed72d // indirect
 	golang.org/x/crypto v0.0.0-20190103213133-ff983b9c42bc
 	golang.org/x/net v0.0.0-20180926154720-4dfa2610cdf3 // indirect

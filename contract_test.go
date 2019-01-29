@@ -38,6 +38,8 @@ func TestContract(t *testing.T) {
 	require.Nil(err)
 	require.True(successful)
 
+	require.Nil(be.Close())
+
 	value, err := testBinding.Value(nil)
 	require.Nil(err)
 	require.Equal("new value", value)
