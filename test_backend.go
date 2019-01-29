@@ -49,6 +49,7 @@ type TestBackend interface {
 	Commit()
 	Rollback()
 	AdjustTime(adjustment time.Duration) error
+	Close() error
 }
 
 type interceptingBackend struct {
