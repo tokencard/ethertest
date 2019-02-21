@@ -24,7 +24,10 @@ Ideally you should create one TestBackend per test, making each test
 isolated from side effects of other tests.
 
 TestBackend implements `github.com/ethereum/go-ethereum/accounts/abi/bind/ContractBackend` interface, so it can be used by `abigen` generated contract bindings.
-In addition it will give you access to the current blockchain account balances, transaction receipts, and option to either commit (mine one block) or roll back (go one block banck in time).
+In addition it will give you access to the current blockchain account balances, transaction receipts, and option to either commit (mine one block) or roll back (go one block back in time).
+
+After the test is done, `Close()` method should be executed on TestBackend.
+This will free allocated caches and stop go routines.
 
 ### Account
 
