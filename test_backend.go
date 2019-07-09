@@ -219,6 +219,10 @@ func (t *TestRig) AddCoverageForContracts(combinedJSON string, contractsPath str
 }
 
 func (t *TestRig) PrintGasUsage(w io.Writer) {
+	if shouldBeSilent() {
+		return
+	}
+
 	for _, c := range t.contracts {
 
 		if !c.hasAnyGasInformation() {
@@ -267,6 +271,11 @@ func (t *TestRig) CoverageOf(name string) float64 {
 }
 
 func (t *TestRig) ExpectMinimumCoverage(name string, expectedCoverage float64) {
+
+	if shouldBeSilent() {
+		return
+	}
+
 	c, found := t.coverage[name]
 	if !found {
 		keys := []string{}
@@ -314,4 +323,23 @@ func (t *TestRig) CaptureFault(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost u
 
 func (t *TestRig) CaptureEnd(output []byte, gasUsed uint64, tm time.Duration, err error) error {
 	return nil
+}
+
+func shouldBeSilent() bool {
+	silent := os.Getenv("SILENT")
+
+	if strings.ToLower(silent) == "true" {
+		return true
+	}
+
+	if strings.ToLower(silent) == "yes" {
+		return true
+	}
+
+	if silent == "1" {
+		return true
+	}
+
+	return false
+
 }
