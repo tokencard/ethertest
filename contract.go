@@ -7,9 +7,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"golang.org/x/crypto/sha3"
 	. "github.com/logrusorgru/aurora"
 	"github.com/tokencard/ethertest/srcmap"
+	"golang.org/x/crypto/sha3"
 )
 
 type sourceCodeCoverage struct {
@@ -119,6 +119,9 @@ func (b *bytecodeWithMapping) executed(pc uint64, contractAddress common.Address
 	if !f {
 		panic(fmt.Errorf("Could not find instruction index for pc %d of contract with hash %s", pc, b.hash.Hex()))
 	} else {
+		if idx >= len(b.sourcemap) {
+			return false
+		}
 		sm := b.sourcemap[idx]
 		if !b.skipCoverage[idx] {
 			if sm.F >= 0 {
