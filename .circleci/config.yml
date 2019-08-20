@@ -2,7 +2,7 @@ version: 2
 jobs:
   build_test:
     docker:
-      - image: quay.io/token/go-build:v0.3.0
+      - image: quay.io/token/go-build:v0.3.4
     working_directory: /home/circleci/github.com/tokencard/ethertest
     steps:
       - checkout
