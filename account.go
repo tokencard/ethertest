@@ -33,7 +33,7 @@ func (a *Account) Address() common.Address {
 	return crypto.PubkeyToAddress(a.pk.PublicKey)
 }
 
-func (a *Account) PrivKey() *ecdsa.PrivateKey{
+func (a *Account) PrivKey() *ecdsa.PrivateKey {
 	return a.pk
 }
 
