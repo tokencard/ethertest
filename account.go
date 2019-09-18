@@ -33,6 +33,10 @@ func (a *Account) Address() common.Address {
 	return crypto.PubkeyToAddress(a.pk.PublicKey)
 }
 
+func (a *Account) PrivKey() *ecdsa.PrivateKey{
+	return a.pk
+}
+
 func (a *Account) MustTransfer(be TestBackend, to common.Address, amount *big.Int) {
 	err := a.Transfer(be, to, amount)
 	if err != nil {
