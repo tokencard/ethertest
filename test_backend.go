@@ -50,6 +50,7 @@ type TestBackend interface {
 	Rollback()
 	AdjustTime(adjustment time.Duration) error
 	Close() error
+	Blockchain() *core.BlockChain
 }
 
 type interceptingBackend struct {
