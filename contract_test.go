@@ -52,4 +52,6 @@ func TestContract(t *testing.T) {
 	tr.ExpectMinimumCoverage("test.sol", 100.0)
 	tr.PrintGasUsage(os.Stdout)
 	fmt.Println(tr.LastExecuted())
+
+	require.Equal(int64(2), be.Blockchain().CurrentHeader().Number.Int64())
 }
