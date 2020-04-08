@@ -4,19 +4,34 @@
 package bindings
 
 import (
+	"math/big"
 	"strings"
 
+	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
+)
+
+// Reference imports to suppress errors if they are not otherwise used.
+var (
+	_ = big.NewInt
+	_ = strings.NewReader
+	_ = ethereum.NotFound
+	_ = abi.U256
+	_ = bind.Bind
+	_ = common.Big1
+	_ = types.BloomLookup
+	_ = event.NewSubscription
 )
 
 // TestABI is the input ABI used to generate the binding from.
-const TestABI = "[{\"constant\":true,\"inputs\":[],\"name\":\"value\",\"outputs\":[{\"name\":\"\",\"type\":\"string\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[],\"name\":\"willFail\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_value\",\"type\":\"string\"}],\"name\":\"setValue\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"name\":\"_value\",\"type\":\"string\"}],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}]"
+const TestABI = "[{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_value\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_value\",\"type\":\"string\"}],\"name\":\"setValue\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"value\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"willFail\",\"outputs\":[],\"stateMutability\":\"pure\",\"type\":\"function\"}]"
 
 // TestBin is the compiled bytecode used for deploying new contracts.
-const TestBin = `608060405234801561001057600080fd5b506040516103de3803806103de83398101604052805101805161003a906000906020840190610041565b50506100dc565b828054600181600116156101000203166002900490600052602060002090601f016020900481019282601f1061008257805160ff19168380011785556100af565b828001600101855582156100af579182015b828111156100af578251825591602001919060010190610094565b506100bb9291506100bf565b5090565b6100d991905b808211156100bb57600081556001016100c5565b90565b6102f3806100eb6000396000f3006080604052600436106100565763ffffffff7c01000000000000000000000000000000000000000000000000000000006000350416633fa4f245811461005b578063625676a2146100e557806393a09352146100fc575b600080fd5b34801561006757600080fd5b5061007061011c565b6040805160208082528351818301528351919283929083019185019080838360005b838110156100aa578181015183820152602001610092565b50505050905090810190601f1680156100d75780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b3480156100f157600080fd5b506100fa6101aa565b005b34801561010857600080fd5b506100fa60048035602481019101356101b4565b6000805460408051602060026001851615610100026000190190941693909304601f810184900484028201840190925281815292918301828280156101a25780601f10610177576101008083540402835291602001916101a2565b820191906000526020600020905b81548152906001019060200180831161018557829003601f168201915b505050505081565b6101b26101c5565b565b6101c06000838361022c565b505050565b604080517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600960248201527f77696c6c206661696c0000000000000000000000000000000000000000000000604482015290519081900360640190fd5b828054600181600116156101000203166002900490600052602060002090601f016020900481019282601f1061026d5782800160ff1982351617855561029a565b8280016001018555821561029a579182015b8281111561029a57823582559160200191906001019061027f565b506102a69291506102aa565b5090565b6102c491905b808211156102a657600081556001016102b0565b905600a165627a7a723058201f807d0054550377a6a64493b1b3621162165fe344c5e3c5000315104a60dc4c0029`
+var TestBin = "0x608060405234801561001057600080fd5b506040516104973803806104978339818101604052602081101561003357600080fd5b810190808051604051939291908464010000000082111561005357600080fd5b90830190602082018581111561006857600080fd5b825164010000000081118282018810171561008257600080fd5b82525081516020918201929091019080838360005b838110156100af578181015183820152602001610097565b50505050905090810190601f1680156100dc5780820380516001836020036101000a031916815260200191505b50604052505081516100f6915060009060208401906100fd565b5050610198565b828054600181600116156101000203166002900490600052602060002090601f016020900481019282601f1061013e57805160ff191683800117855561016b565b8280016001018555821561016b579182015b8281111561016b578251825591602001919060010190610150565b5061017792915061017b565b5090565b61019591905b808211156101775760008155600101610181565b90565b6102f0806101a76000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c80633fa4f24514610046578063625676a2146100c357806393a09352146100cd575b600080fd5b61004e61013d565b6040805160208082528351818301528351919283929083019185019080838360005b83811015610088578181015183820152602001610070565b50505050905090810190601f1680156100b55780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b6100cb6101cb565b005b6100cb600480360360208110156100e357600080fd5b8101906020810181356401000000008111156100fe57600080fd5b82018360208201111561011057600080fd5b8035906020019184600183028401116401000000008311171561013257600080fd5b5090925090506101d5565b6000805460408051602060026001851615610100026000190190941693909304601f810184900484028201840190925281815292918301828280156101c35780601f10610198576101008083540402835291602001916101c3565b820191906000526020600020905b8154815290600101906020018083116101a657829003601f168201915b505050505081565b6101d36101e6565b565b6101e16000838361021f565b505050565b6040805162461bcd60e51b81526020600482015260096024820152681dda5b1b0819985a5b60ba1b604482015290519081900360640190fd5b828054600181600116156101000203166002900490600052602060002090601f016020900481019282601f106102605782800160ff1982351617855561028d565b8280016001018555821561028d579182015b8281111561028d578235825591602001919060010190610272565b5061029992915061029d565b5090565b6102b791905b8082111561029957600081556001016102a3565b9056fea2646970667358221220330a41b89c04be6a8f212a5f4b93ff2c06e4eb01c48df30188361de6eba7dcb764736f6c63430006040033"
 
 // DeployTest deploys a new Ethereum contract, binding an instance of Test to it.
 func DeployTest(auth *bind.TransactOpts, backend bind.ContractBackend, _value string) (common.Address, *types.Transaction, *Test, error) {
@@ -24,6 +39,7 @@ func DeployTest(auth *bind.TransactOpts, backend bind.ContractBackend, _value st
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
+
 	address, tx, contract, err := bind.DeployContract(auth, parsed, common.FromHex(TestBin), backend, _value)
 	if err != nil {
 		return common.Address{}, nil, nil, err
@@ -199,44 +215,47 @@ func (_Test *TestCallerSession) Value() (string, error) {
 	return _Test.Contract.Value(&_Test.CallOpts)
 }
 
+// WillFail is a free data retrieval call binding the contract method 0x625676a2.
+//
+// Solidity: function willFail() constant returns()
+func (_Test *TestCaller) WillFail(opts *bind.CallOpts) error {
+	var ()
+	out := &[]interface{}{}
+	err := _Test.contract.Call(opts, out, "willFail")
+	return err
+}
+
+// WillFail is a free data retrieval call binding the contract method 0x625676a2.
+//
+// Solidity: function willFail() constant returns()
+func (_Test *TestSession) WillFail() error {
+	return _Test.Contract.WillFail(&_Test.CallOpts)
+}
+
+// WillFail is a free data retrieval call binding the contract method 0x625676a2.
+//
+// Solidity: function willFail() constant returns()
+func (_Test *TestCallerSession) WillFail() error {
+	return _Test.Contract.WillFail(&_Test.CallOpts)
+}
+
 // SetValue is a paid mutator transaction binding the contract method 0x93a09352.
 //
-// Solidity: function setValue(_value string) returns()
+// Solidity: function setValue(string _value) returns()
 func (_Test *TestTransactor) SetValue(opts *bind.TransactOpts, _value string) (*types.Transaction, error) {
 	return _Test.contract.Transact(opts, "setValue", _value)
 }
 
 // SetValue is a paid mutator transaction binding the contract method 0x93a09352.
 //
-// Solidity: function setValue(_value string) returns()
+// Solidity: function setValue(string _value) returns()
 func (_Test *TestSession) SetValue(_value string) (*types.Transaction, error) {
 	return _Test.Contract.SetValue(&_Test.TransactOpts, _value)
 }
 
 // SetValue is a paid mutator transaction binding the contract method 0x93a09352.
 //
-// Solidity: function setValue(_value string) returns()
+// Solidity: function setValue(string _value) returns()
 func (_Test *TestTransactorSession) SetValue(_value string) (*types.Transaction, error) {
 	return _Test.Contract.SetValue(&_Test.TransactOpts, _value)
-}
-
-// WillFail is a paid mutator transaction binding the contract method 0x625676a2.
-//
-// Solidity: function willFail() returns()
-func (_Test *TestTransactor) WillFail(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _Test.contract.Transact(opts, "willFail")
-}
-
-// WillFail is a paid mutator transaction binding the contract method 0x625676a2.
-//
-// Solidity: function willFail() returns()
-func (_Test *TestSession) WillFail() (*types.Transaction, error) {
-	return _Test.Contract.WillFail(&_Test.TransactOpts)
-}
-
-// WillFail is a paid mutator transaction binding the contract method 0x625676a2.
-//
-// Solidity: function willFail() returns()
-func (_Test *TestTransactorSession) WillFail() (*types.Transaction, error) {
-	return _Test.Contract.WillFail(&_Test.TransactOpts)
 }

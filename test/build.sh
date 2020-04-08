@@ -2,7 +2,7 @@
 
 set -e -o pipefail
 
-SOLC="docker run --rm -u `id -u` -v $PWD:/solidity --workdir /solidity/contracts ethereum/solc:0.4.25 --optimize"
+SOLC="docker run --rm -u `id -u` -v $PWD:/solidity --workdir /solidity/contracts ethereum/solc:0.6.4 --optimize"
 
 compile_solidity() {
   echo "compiling ${1}"
@@ -29,14 +29,15 @@ fi
 
 if [ ! -d "$GE_PATH" ]
 then
-  echo 'Cold not find go-ethereum in vendor/ or $GOPATH'
+  echo 'Could not find go-ethereum in vendor/ or $GOPATH'
 fi
 
 
 
 
 # Generate Go bindings from solidity contracts.
-ABIGEN="docker run --rm -u `id -u` --workdir /contracts -e GOPATH=/go -v $PWD:/contracts  -v $GE_PATH:/go/src/github.com/ethereum/go-ethereum ethereum/client-go:alltools-v1.8.16 abigen"
+ABIGEN="docker run --rm -u `id -u` --workdir /contracts -e GOPATH=/go -v $PWD:/contracts  -v $GE_PATH:/go/sc/github.com/etherreum/go-ethereum ethereum/client-go:alltools-v1.9.12 abigen"
+
 
 generate_binding() {
   contract=$(echo $1 | awk '{print $1}')
