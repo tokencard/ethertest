@@ -44,7 +44,7 @@ func TestContract(t *testing.T) {
 	require.Nil(err)
 	require.Equal("new value", value)
 
-	tx, err = testBinding.WillFail(owner.TransactOpts())
+	err = testBinding.WillFail(nil)
 	require.NotNil(err)
 
 	tr.SaveTrace(os.Stdout)

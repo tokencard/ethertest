@@ -19,24 +19,10 @@ do
 done
 
 
-GE_PATH="${PWD}/vendor/github.com/ethereum/go-ethereum"
-
-if [ ! -d "$GE_PATH" ]
-then
-  GE_PATH="${GOPATH}/src/github.com/ethereum/go-ethereum"
-fi
-
-
-if [ ! -d "$GE_PATH" ]
-then
-  echo 'Cold not find go-ethereum in vendor/ or $GOPATH'
-fi
-
-
-
 
 # Generate Go bindings from solidity contracts.
-ABIGEN="docker run --rm -u `id -u` --workdir /contracts -e GOPATH=/go -v $PWD:/contracts  -v $GE_PATH:/go/src/github.com/ethereum/go-ethereum ethereum/client-go:alltools-v1.9.12 abigen"
+ABIGEN="docker run --rm -u `id -u` --workdir /contracts -e GOPATH=/go -v $PWD:/contracts  -v $PWD:/go/src/github.com/ethereum/go-ethereum ethereum/client-go:alltools-v1.9.12 abigen"
+
 
 generate_binding() {
   contract=$(echo $1 | awk '{print $1}')

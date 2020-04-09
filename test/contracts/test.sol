@@ -15,7 +15,7 @@ contract Test is Super {
     value = _value;
   }
 
-  function willFail() external {
+  function willFail() external pure {
     alwaysFails();
   }
 
