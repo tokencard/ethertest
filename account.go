@@ -25,6 +25,10 @@ func NewAccount() *Account {
 	return &Account{k}
 }
 
+func NewAccountFromPrivKey(pk *ecdsa.PrivateKey) *Account {
+	return &Account{pk}
+}
+
 type Account struct {
 	pk *ecdsa.PrivateKey
 }
